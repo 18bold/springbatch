@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:batch="http://www.springframework.org/schema/batch"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+        http://www.springframework.org/schema/batch http://www.springframework.org/schema/batch/spring-batch.xsd">
+
+    <bean id="messageReader" class="org.springframework.batch.item.file.FlatFileItemReader">
+        <property name="lineMapper" ref="lineMapper"/>
+        <property name="resource" value="/message/user.txt"/>
+    </bean>
+
+    <bean id="lineMapper" class="org.springframework.batch.item.file.mapping.DefaultLineMapper">
+        <property name="lineTokenizer" ref="lineTokenizer"/>
+        <property name="fieldSetMapper" ref="fieldSetMapper"/>
+    </bean>
+
+    <bean id="fieldSetMapper" class="com.bold.springbatch.mapper.UserMapper"/>
+
+    <!-- 定义每行的分隔符，指定策略为","-->
+    <bean id="lineTokenizer" class="org.springframework.batch.item.file.transform.DelimitedLineTokenizer"/>
+
+    <bean id="messageProcessor" class="com.bold.springbatch.MessageProcessor"/>
+
+    <bean id="messageWriter" class="com.bold.springbatch.MessageWriter"/>
+
+
+    <!-- 任务仓库 -->
+
+
+    <batch:job-repository id="jobRepository"  data-source="dataSource"
+                          transaction-manager="transactionManager"
+                          isolation-level-for-create="SERIALIZABLE"
+                          table-prefix="BATCH_"
+                          max-varchar-length="1000"
+    />
+
+    <!-- 任务调度器 -->
+    <bean id="jobLauncher" class="org.springframework.batch.core.launch.support.SimpleJobLauncher">
+        <property name="jobRepository" ref="jobRepository"/>
+    </bean>
+
+
+    <!-- 事务管理器 -->
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource"/>
+    </bean>
+
+    <!--  数据库 -->
+
+    <bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+        <property name="driverClassName" value="com.mysql.jdbc.Driver" />
+        <property name="url" value="jdbc:mysql://localhost:3306/batch" />  <!--一般的连接池属性名是url -->
+        <property name="username" value="root" />
+        <property name="password" value="123456" />
+    </bean>
+
+    <!-- commit-interval 设置提交间隔 每10个写一次 -->
+    <batch:job id="messageJob">
+        <batch:step id="messageStep">
+            <batch:tasklet transaction-manager="transactionManager">
+                <batch:chunk reader="messageReader" processor="messageProcessor" writer="messageWriter"
+                             commit-interval="10">
+                </batch:chunk>
+            </batch:tasklet>
+        </batch:step>
+        <batch:listeners>
+            <batch:listener ref="systemOut"/>
+        </batch:listeners>
+    </batch:job>
+
+    <bean id="systemOut" class="com.bold.springbatch.SystemOut"/>
+</beans>
